@@ -14,4 +14,11 @@ ImageSorter.exe \<source dir\> \<target dir\> [params]
 * -whatif When used, prints and logs the outcome of the sorting without moving the files.
 * -d Use to delete the files after copying. You will be asked before the deletion is done.
 
+## Dependencies
+This project uses external libraries to extract EXIF data from images
+* taglib-sharp https://github.com/mono/taglib-sharp
+* dcraw.net http://sourceforge.net/projects/dcrawnet/
+* 
+
+
 Hope it helps.
