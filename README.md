@@ -18,7 +18,6 @@ ImageSorter.exe \<source dir\> \<target dir\> [params]
 This project uses external libraries to extract EXIF data from images
 * taglib-sharp https://github.com/mono/taglib-sharp
 * dcraw.net http://sourceforge.net/projects/dcrawnet/
-* 
 
 
 Hope it helps.
