@@ -11,8 +11,8 @@ The program works by copying the files into the new folder structure. Use the -d
 ImageSorter.exe \<source dir\> \<target dir\> [params]
 
 ### Params
-* -whatif When used, prints and logs the outcome of the sorting without moving the files.
-* -d Use to delete the files after copying. You will be asked before the deletion is done.
+* -whatif			When used, prints and logs the outcome of the sorting without moving the files.
+* -d					Use to delete the files after copying. You will be asked before the deletion is done.
 
 ## Dependencies
 This project uses external libraries to extract EXIF data from images
