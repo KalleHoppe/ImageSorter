@@ -1,10 +1,4 @@
-﻿// See https://aka.ms/new-console-template for more information
-//private static List<string> _movedFiles = new List<string>();
-//private static bool _whatIf = false;
-//private static bool inputArgs.DeleteSource = false;
-
-
-using ImageSorter;
+﻿using ImageSorter;
 using ImageSorter.Domain;
 
 Input inputArgs;
@@ -54,14 +48,12 @@ Util.Print("Done getting files");
     //Loop thru files
 
     Parallel.ForEach(files , file =>
-    //foreach (var file in files)
     {
         {
             //For each file read date from exif
             var fileDate = Util.ParsePhotoDate(file);
             if (fileDate.HasValue)
             {
-
                 //Create new paths
                 var newDesitnationFolder = Util.GetNewDestinationFolder(inputArgs, fileDate);
                 var duplicateDestinationFolder = Util.GetDuplicateDestinationFolder(inputArgs.DestinationDir, fileDate);
