@@ -198,7 +198,7 @@ namespace dcraw
 
     internal class TiffHeader
     {
-        ushort order, magic;
+        ushort order;
         int offset_ntag;
         // ushort pad
         // ntag
