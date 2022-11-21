@@ -279,7 +279,7 @@ namespace dcraw
         public double getreal(int type)
         {
             //union { char c[8]; double d; } u;
-            int i, rev;
+            //int rev;
 
             double d;
             switch (type)
@@ -304,7 +304,7 @@ namespace dcraw
                     throw new NotImplementedException();
                     /*
                 rev = 7 * ((order == 0x4949) ? 1 : 0);
-                for (i=0; i < 8; i++)
+                for (int i=0; i < 8; i++)
                 {
                     u.c[i ^ rev] = ReadByte();
                 }

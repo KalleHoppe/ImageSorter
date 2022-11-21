@@ -3054,7 +3054,7 @@ namespace dcraw
                         if (len > 4) len = 4;
                         state.colors = len;
                         ifp.Read(cfa_pc, 0, state.colors);
-                        //fread(cfa_pc, 1, state.colors, state.ifp);
+                        //fread(cfa_pc, 1, state.colors, state.ifp);a
                         guess_cfa_pc:
                         for (c = 0; c < state.colors; c++)
                         {

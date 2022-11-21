@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using log4net;
 
 namespace ImageSorter
 {
@@ -54,26 +53,26 @@ namespace ImageSorter
 
         public static void WriteToLog(string message, string logger, Level level, Exception exception)
         {
-            ILog logToWriteTo = LogManager.GetLogger(logger);
+            //Log logToWriteTo = LogManager.GetLogger(logger);
 
-            switch (level)
-            {
-                case Level.Info:
-                    logToWriteTo.Info(message, exception);
-                    break;
-                case Level.Debug:
-                    logToWriteTo.Debug(message, exception);
-                    break;
-                case Level.Warn:
-                    logToWriteTo.Warn(message, exception);
-                    break;
-                case Level.Error:
-                    logToWriteTo.Error(message, exception);
-                    break;
-                case Level.Fatal:
-                    logToWriteTo.Fatal(message, exception);
-                    break;
-            }
+            //switch (level)
+            //{
+            //    case Level.Info:
+            //        logToWriteTo.Info(message, exception);
+            //        break;
+            //    case Level.Debug:
+            //        logToWriteTo.Debug(message, exception);
+            //        break;
+            //    case Level.Warn:
+            //        logToWriteTo.Warn(message, exception);
+            //        break;
+            //    case Level.Error:
+            //        logToWriteTo.Error(message, exception);
+            //        break;
+            //    case Level.Fatal:
+            //        logToWriteTo.Fatal(message, exception);
+            //        break;
+            //}
         }
     }
 }
