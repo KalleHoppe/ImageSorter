@@ -10,6 +10,15 @@
 *.userosscache
 *.sln.docstates
 
+Tests/SourceImages/
+Tests/SourceImages/*
+Tests/Destination/
+*.[Jj][Pp][Gg]
+*.[Jj][Pp][Ee][Gg]
+*.[Pp][Nn][Gg]
+*.[Gg][Ii][Ff]
+*.[Av][Ii]
+
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
 

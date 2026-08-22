@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace ImageSorter.Domain
@@ -15,20 +15,25 @@ namespace ImageSorter.Domain
                 throw new ArgumentNullException(nameof(sourceDir));
             if (string.IsNullOrWhiteSpace(destinationDir))
                 throw new ArgumentNullException(nameof(destinationDir));
-            var dirRegex = @"^[a-zA-Z]:\\(?:\w+\\?)*$";
-            var sourceMatch = Regex.Match(sourceDir, dirRegex, RegexOptions.IgnoreCase);
-            
-            if (!sourceMatch.Success)
+
+            if (!IsValidAbsolutePath(sourceDir))
                 throw new ArgumentException("Invalid path format, please check the source dir format");
 
-            var destmatch = Regex.Match(destinationDir, dirRegex, RegexOptions.IgnoreCase);
-            if (!destmatch.Success)
+            if (!IsValidAbsolutePath(destinationDir))
                 throw new ArgumentException("Invalid path format, please check the destination dir format");
 
             SourceDir = sourceDir;
-            DestinationDir = destinationDir.TrimEnd('\\');
+            DestinationDir = destinationDir.TrimEnd('\\', '/');
             DeleteSource = delete;
             WhatIf = whatIf;
+        }
+
+        private static bool IsValidAbsolutePath(string path)
+        {
+            if (path.IndexOfAny(Path.GetInvalidPathChars()) >= 0)
+                return false;
+
+            return Path.IsPathRooted(path);
         }
 
 

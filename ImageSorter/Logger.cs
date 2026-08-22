@@ -1,8 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using Serilog;
+using Serilog.Events;
 
 namespace ImageSorter
 {
@@ -19,60 +16,44 @@ namespace ImageSorter
             Fatal
         }
 
-        public enum LoggerName
-        {
-            AppLogLogger
-        }
-
         #endregion
+
+        public static void Init()
+        {
+            Log.Logger = new LoggerConfiguration()
+                .MinimumLevel.Debug()
+                .WriteTo.File("Logs/imagesorter-.log", rollingInterval: RollingInterval.Day)
+                .CreateLogger();
+        }
 
         public static void WriteToLog(string message, Level level)
         {
-            WriteToLog(message, "AppLogLogger", level);
+            WriteToLog(message, level, null);
         }
 
-        public static void WriteToLog(string message, Level level, Exception ex)
+        public static void WriteToLog(string message, Level level, Exception? exception)
         {
-            WriteToLog(message, "AppLogLogger", level, ex);
+            var eventLevel = level switch
+            {
+                Level.Info => LogEventLevel.Information,
+                Level.Debug => LogEventLevel.Debug,
+                Level.Warn => LogEventLevel.Warning,
+                Level.Error => LogEventLevel.Error,
+                Level.Fatal => LogEventLevel.Fatal,
+                _ => LogEventLevel.Information
+            };
+
+            Log.Write(eventLevel, exception, message);
         }
 
         public static void LogDuplicate(string message)
         {
-            WriteToLog(message, "DuplicateLogger", Level.Info);
+            WriteToLog(message, Level.Info);
         }
 
         public static void LogMoved(string message)
         {
-            WriteToLog(message, "MovedLogger", Level.Info);
-        }
-
-        public static void WriteToLog(string message, string logger, Level level)
-        {
-            WriteToLog(message, logger, level, null);
-        }
-
-        public static void WriteToLog(string message, string logger, Level level, Exception exception)
-        {
-            //Log logToWriteTo = LogManager.GetLogger(logger);
-
-            //switch (level)
-            //{
-            //    case Level.Info:
-            //        logToWriteTo.Info(message, exception);
-            //        break;
-            //    case Level.Debug:
-            //        logToWriteTo.Debug(message, exception);
-            //        break;
-            //    case Level.Warn:
-            //        logToWriteTo.Warn(message, exception);
-            //        break;
-            //    case Level.Error:
-            //        logToWriteTo.Error(message, exception);
-            //        break;
-            //    case Level.Fatal:
-            //        logToWriteTo.Fatal(message, exception);
-            //        break;
-            //}
+            WriteToLog(message, Level.Info);
         }
     }
 }
