@@ -10,6 +10,15 @@ namespace ImageSorter
 {
     internal class Util
     {
+        // taglib-sharp's IFDReader keeps its loop-detection state in static Dictionaries shared
+        // across every thread, so concurrent TagLib.File.Create calls (e.g. from Parallel.ForEach)
+        // can corrupt them and throw IndexOutOfRangeException. Serialize access to work around it.
+        private static readonly object TagLibLock = new object();
+
+        // CopyFile mutates a List<string> shared across Parallel.ForEach worker threads; List<T> is
+        // not thread-safe, so concurrent Add calls can also throw. Serialize access here too.
+        private static readonly object CopyFileLock = new object();
+
         public static Input GetArgs(string[] args)
         {
             string sourceDir = args[0];
@@ -56,33 +65,36 @@ namespace ImageSorter
 
         public static void CopyFile(List<string> movedFiles, string newDesitnationFolder, string newFullPath, string duplicateDesitnationFolder, string file)
         {
-            //If the dir is missing, create a new and move the file
-            if (!Directory.Exists(newDesitnationFolder))
+            lock (CopyFileLock)
             {
-                Directory.CreateDirectory(newDesitnationFolder);
-            }
-
-            //Move the file to the corresponding directory
-            if (File.Exists(newFullPath))
-            {
-                newFullPath = duplicateDesitnationFolder + Path.GetFileName(file);
-                if (!Directory.Exists(duplicateDesitnationFolder))
+                //If the dir is missing, create a new and move the file
+                if (!Directory.Exists(newDesitnationFolder))
                 {
-                    Directory.CreateDirectory(duplicateDesitnationFolder);
+                    Directory.CreateDirectory(newDesitnationFolder);
                 }
-                Print("File " + file + " already in " + newFullPath);
-                LogUtility.LogDuplicate("Moved file to " + newFullPath);
-            }
 
-            if (!File.Exists(newFullPath))
-            {
-                File.Copy(file, newFullPath);
-                Print("Moved " + file + " ==> " + newFullPath);
-                movedFiles.Add(file);
-            }
-            else
-            {
-                Print("File " + newFullPath + " not copied, It already exist in destination and duplicate folder");
+                //Move the file to the corresponding directory
+                if (File.Exists(newFullPath))
+                {
+                    newFullPath = Path.Combine(duplicateDesitnationFolder, Path.GetFileName(file));
+                    if (!Directory.Exists(duplicateDesitnationFolder))
+                    {
+                        Directory.CreateDirectory(duplicateDesitnationFolder);
+                    }
+                    Print("File " + file + " already in " + newFullPath);
+                    LogUtility.LogDuplicate("Moved file to " + newFullPath);
+                }
+
+                if (!File.Exists(newFullPath))
+                {
+                    File.Copy(file, newFullPath);
+                    Print("Moved " + file + " ==> " + newFullPath);
+                    movedFiles.Add(file);
+                }
+                else
+                {
+                    Print("File " + newFullPath + " not copied, It already exist in destination and duplicate folder");
+                }
             }
         }
 
@@ -99,7 +111,7 @@ namespace ImageSorter
             if (!fileDate.HasValue)
                 return inputArgs.DestinationDir;
 
-            return $"{inputArgs.DestinationDir}\\{fileDate.Value.ToString("yyyy")}\\{fileDate.Value.ToString("MM")}\\{fileDate.Value.ToString("dd")}";
+            return Path.Combine(inputArgs.DestinationDir, fileDate.Value.ToString("yyyy"), fileDate.Value.ToString("MM"), fileDate.Value.ToString("dd"));
         }
 
         public static string GetDuplicateDestinationFolder(string destinationDir, DateTime? fileDate)
@@ -107,8 +119,7 @@ namespace ImageSorter
             if (!fileDate.HasValue)
                 return destinationDir;
 
-            return string.Format("{0}\\{1}\\{2}\\{3}\\", destinationDir + @"\Duplicates",
-                    fileDate.Value.ToString("yyyy"), fileDate.Value.ToString("MM"), fileDate.Value.ToString("dd"));
+            return Path.Combine(destinationDir, "Duplicates", fileDate.Value.ToString("yyyy"), fileDate.Value.ToString("MM"), fileDate.Value.ToString("dd"));
         }
 
         public static List<String> GetAllFiles(String directory)
@@ -126,47 +137,51 @@ namespace ImageSorter
                 return GetRC2PhotoDate(path);
             }
 
-            try
+            lock (TagLibLock)
             {
-                file = TagLib.File.Create(path);
-            }
-            catch (TagLib.UnsupportedFormatException)
-            {
-                Print("UNSUPPORTED FILE not moving: " + path);
-                return null;
-            }
-            catch (TagLib.CorruptFileException)
-            {
-                var time = LastWriteTime(path);
-                Console.WriteLine("---------------");
-                Print("Corrupted File, using last Write time " + path + time);
-                LogUtility.WriteToLog("Corrupted File, using last Write time " + path + time, LogUtility.Level.Error);
-                Console.WriteLine("---------------");
-                return LastWriteTime(path);
-            }
-            catch (OverflowException)
-            {
-                var time = LastWriteTime(path);
-                Console.WriteLine("---------------");
-                Print("Corrupted File, using last Write time " + path + time);
-                LogUtility.WriteToLog("Corrupted File, using last Write time " + path + time, LogUtility.Level.Error);
-                Console.WriteLine("---------------");
-                return LastWriteTime(path);
-            }
-            catch (Exception)
-            {
-                Print("Unknown error: " + path);
-                return null;
-            }
+                try
+                {
+                    file = TagLib.File.Create(path);
+                }
+                catch (TagLib.UnsupportedFormatException)
+                {
+                    Print("UNSUPPORTED FILE not moving: " + path);
+                    return null;
+                }
+                catch (TagLib.CorruptFileException)
+                {
+                    var time = LastWriteTime(path);
+                    Console.WriteLine("---------------");
+                    Print("Corrupted File, using last Write time " + path + time);
+                    LogUtility.WriteToLog("Corrupted File, using last Write time " + path + time, LogUtility.Level.Error);
+                    Console.WriteLine("---------------");
+                    return LastWriteTime(path);
+                }
+                catch (OverflowException)
+                {
+                    var time = LastWriteTime(path);
+                    Console.WriteLine("---------------");
+                    Print("Corrupted File, using last Write time " + path + time);
+                    LogUtility.WriteToLog("Corrupted File, using last Write time " + path + time, LogUtility.Level.Error);
+                    Console.WriteLine("---------------");
+                    return LastWriteTime(path);
+                }
+                catch (Exception ex)
+                {
+                    LogUtility.WriteToLog(path + "--" + ex.Message, LogUtility.Level.Error);
+                    Print("Unknown error: " + path);
+                    return null;
+                }
 
-            var image = file as TagLib.Image.File;
-            if (image == null)
-            {
-                Print("NOT AN IMAGE FILE  Using file date: " + path);
-                return LastWriteTime(path);
-            }
+                var image = file as TagLib.Image.File;
+                if (image == null)
+                {
+                    Print("NOT AN IMAGE FILE  Using file date: " + path);
+                    return LastWriteTime(path);
+                }
 
-            return image.ImageTag.DateTime ?? LastWriteTime(path);
+                return image.ImageTag.DateTime ?? LastWriteTime(path);
+            }
 
             //Console.WriteLine(String.Empty);
             //Console.WriteLine(path);

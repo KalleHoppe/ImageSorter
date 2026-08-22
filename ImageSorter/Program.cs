@@ -1,6 +1,8 @@
 ﻿using ImageSorter;
 using ImageSorter.Domain;
 
+LogUtility.Init();
+
 Input inputArgs;
 List<string> _movedFiles = new List<string>();
 
@@ -57,7 +59,7 @@ Util.Print("Done getting files");
                 //Create new paths
                 var newDesitnationFolder = Util.GetNewDestinationFolder(inputArgs, fileDate);
                 var duplicateDestinationFolder = Util.GetDuplicateDestinationFolder(inputArgs.DestinationDir, fileDate);
-                var newFullPath = newDesitnationFolder + Path.GetFileName(file);
+                var newFullPath = Path.Combine(newDesitnationFolder, Path.GetFileName(file));
                 //Print(file + " ==> " + newFullPath);
 
                 if (inputArgs.WhatIf)
@@ -80,3 +82,5 @@ Util.Print("Done getting files");
     Util.Print(_movedFiles.Count() + " files have been sorted to the new " + inputArgs.DestinationDir);
     Util.Print("See the log for details");
     Console.ReadLine();
+
+Serilog.Log.CloseAndFlush();

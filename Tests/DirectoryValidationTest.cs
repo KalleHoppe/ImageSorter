@@ -1,25 +1,22 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using NUnit.Framework;
 using ImageSorter;
+using Xunit;
 
 namespace ImageSorterTests
 {
-    [TestFixture]
     public class DirectoryValidationTest
     {
-        //[TestFixtureSetUp]
-        //public void Init()
-        //{
-            
-        //}
-
-        public void ValidateDirectory()
+        [Fact]
+        public void ValidateDirectory_ExistingDirectory_DoesNotThrow()
         {
+            Validation.ValidateDirectory(Path.GetTempPath());
+        }
 
+        [Fact]
+        public void ValidateDirectory_MissingDirectory_ThrowsDirectoryNotFoundException()
+        {
+            var missingDirectory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+
+            Assert.Throws<DirectoryNotFoundException>(() => Validation.ValidateDirectory(missingDirectory));
         }
     }
 }
