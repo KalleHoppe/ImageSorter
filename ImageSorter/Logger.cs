@@ -22,7 +22,7 @@ namespace ImageSorter
         {
             Log.Logger = new LoggerConfiguration()
                 .MinimumLevel.Debug()
-                .WriteTo.File("Logs/imagesorter-.log", rollingInterval: RollingInterval.Day)
+                .WriteTo.File("Logs/imagesorter-.log", rollingInterval: RollingInterval.Hour)
                 .CreateLogger();
         }
 
