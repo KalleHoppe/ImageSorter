@@ -1,5 +1,4 @@
-﻿using dcraw;
-using ImageSorter.Domain;
+﻿using ImageSorter.Domain;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -124,12 +123,6 @@ namespace ImageSorter
 
         public static DateTime? ParsePhotoDate(string path)
         {
-            //Get CR2 EXIF date
-            if (Path.GetExtension(path) == ".CR2")
-            {
-                return GetRC2PhotoDate(path);
-            }
-
             IReadOnlyList<MetadataExtractor.Directory> directories;
             try
             {
@@ -157,17 +150,6 @@ namespace ImageSorter
             }
 
             return MetadataDateReader.SelectDate(directories) ?? LastWriteTime(path);
-        }
-
-        public static DateTime? GetRC2PhotoDate(string path)
-        {
-            DcRawState state = new DcRawState();
-            state.inFilename = path;
-            state.ifp = new RawStream(path);
-
-            Identifier id = new Identifier(state);
-            id.identify(state.ifp);
-            return state.timestamp.HasValue ? state.timestamp.Value : LastWriteTime(path);
         }
 
         public static DateTime? LastWriteTime(string path)

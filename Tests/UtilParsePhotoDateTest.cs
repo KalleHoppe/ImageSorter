@@ -30,6 +30,16 @@ namespace ImageSorterTests
         }
 
         [Fact]
+        public void ParsePhotoDate_Cr2RawWithExifDateTimeOriginal_ReturnsThatDate()
+        {
+            var path = GetFixturePath("minimal-raw.cr2");
+
+            var result = Util.ParsePhotoDate(path);
+
+            Assert.Equal(new DateTime(2024, 9, 10, 7, 15, 30), result);
+        }
+
+        [Fact]
         public void ParsePhotoDate_UnsupportedFormat_ReturnsNull()
         {
             var path = GetFixturePath("unsupported.txt");
