@@ -66,6 +66,14 @@ Util.Print("Done getting files");
                 {
                      Util.Print("Will move " + file + " ==> " + newFullPath);
                     _movedFiles.Add(file);
+
+                    var companionJson = Util.GetCompanionJsonFile(file);
+                    if (companionJson != null)
+                    {
+                        var newJsonPath = Path.Combine(newDesitnationFolder, Path.GetFileName(companionJson));
+                        Util.Print("Will move " + companionJson + " ==> " + newJsonPath);
+                        _movedFiles.Add(companionJson);
+                    }
                 }
                 else
                 { Util.CopyFile(_movedFiles, newDesitnationFolder, newFullPath, duplicateDestinationFolder, file); }

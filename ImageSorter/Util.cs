@@ -142,12 +142,51 @@ namespace ImageSorter
                     File.Copy(file, newFullPath);
                     Print("Moved " + file + " ==> " + newFullPath);
                     movedFiles.Add(file);
+
+                    CopyCompanionJsonFile(movedFiles, file, Path.GetDirectoryName(newFullPath)!);
                 }
                 else
                 {
                     Print("File " + newFullPath + " not copied, It already exist in destination and duplicate folder");
                 }
             }
+        }
+
+        // Google Takeout-style sidecar metadata files use either the full source file name
+        // plus ".json" (photo.jpg.json) or the base name with the extension replaced (photo.json).
+        public static string? GetCompanionJsonFile(string filePath)
+        {
+            var fullNameJson = filePath + ".json";
+            if (File.Exists(fullNameJson))
+                return fullNameJson;
+
+            var baseNameJson = Path.ChangeExtension(filePath, ".json");
+            if (File.Exists(baseNameJson))
+                return baseNameJson;
+
+            return null;
+        }
+
+        // Places the companion JSON next to wherever its image actually ended up (which CopyFile
+        // may have redirected to the duplicate folder), reusing the date already parsed from the
+        // image's own metadata rather than re-reading the JSON - the destination is already known,
+        // so there's nothing left to extract from it.
+        private static void CopyCompanionJsonFile(List<string> movedFiles, string file, string destinationFolder)
+        {
+            var companionJson = GetCompanionJsonFile(file);
+            if (companionJson == null)
+                return;
+
+            var newJsonPath = Path.Combine(destinationFolder, Path.GetFileName(companionJson));
+            if (File.Exists(newJsonPath))
+            {
+                Print("Companion JSON " + newJsonPath + " not copied, it already exists at the destination");
+                return;
+            }
+
+            File.Copy(companionJson, newJsonPath);
+            Print("Moved " + companionJson + " ==> " + newJsonPath);
+            movedFiles.Add(companionJson);
         }
 
         public static void Print(string message)
