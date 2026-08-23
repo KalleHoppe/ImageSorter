@@ -10,11 +10,6 @@ namespace ImageSorter
 {
     internal class Util
     {
-        // taglib-sharp's IFDReader keeps its loop-detection state in static Dictionaries shared
-        // across every thread, so concurrent TagLib.File.Create calls (e.g. from Parallel.ForEach)
-        // can corrupt them and throw IndexOutOfRangeException. Serialize access to work around it.
-        private static readonly object TagLibLock = new object();
-
         // CopyFile mutates a List<string> shared across Parallel.ForEach worker threads; List<T> is
         // not thread-safe, so concurrent Add calls can also throw. Serialize access here too.
         private static readonly object CopyFileLock = new object();
@@ -129,106 +124,39 @@ namespace ImageSorter
 
         public static DateTime? ParsePhotoDate(string path)
         {
-            TagLib.File file = null;
-
             //Get CR2 EXIF date
             if (Path.GetExtension(path) == ".CR2")
             {
                 return GetRC2PhotoDate(path);
             }
 
-            lock (TagLibLock)
+            IReadOnlyList<MetadataExtractor.Directory> directories;
+            try
             {
-                try
-                {
-                    file = TagLib.File.Create(path);
-                }
-                catch (TagLib.UnsupportedFormatException)
-                {
-                    Print("UNSUPPORTED FILE not moving: " + path);
-                    return null;
-                }
-                catch (TagLib.CorruptFileException)
-                {
-                    var time = LastWriteTime(path);
-                    Console.WriteLine("---------------");
-                    Print("Corrupted File, using last Write time " + path + time);
-                    LogUtility.WriteToLog("Corrupted File, using last Write time " + path + time, LogUtility.Level.Error);
-                    Console.WriteLine("---------------");
-                    return LastWriteTime(path);
-                }
-                catch (OverflowException)
-                {
-                    var time = LastWriteTime(path);
-                    Console.WriteLine("---------------");
-                    Print("Corrupted File, using last Write time " + path + time);
-                    LogUtility.WriteToLog("Corrupted File, using last Write time " + path + time, LogUtility.Level.Error);
-                    Console.WriteLine("---------------");
-                    return LastWriteTime(path);
-                }
-                catch (Exception ex)
-                {
-                    LogUtility.WriteToLog(path + "--" + ex.Message, LogUtility.Level.Error);
-                    Print("Unknown error: " + path);
-                    return null;
-                }
-
-                var image = file as TagLib.Image.File;
-                if (image == null)
-                {
-                    Print("NOT AN IMAGE FILE  Using file date: " + path);
-                    return LastWriteTime(path);
-                }
-
-                return image.ImageTag.DateTime ?? LastWriteTime(path);
+                directories = MetadataExtractor.ImageMetadataReader.ReadMetadata(path);
+            }
+            catch (MetadataExtractor.ImageProcessingException)
+            {
+                Print("UNSUPPORTED FILE not moving: " + path);
+                return null;
+            }
+            catch (IOException)
+            {
+                var time = LastWriteTime(path);
+                Console.WriteLine("---------------");
+                Print("Corrupted File, using last Write time " + path + time);
+                LogUtility.WriteToLog("Corrupted File, using last Write time " + path + time, LogUtility.Level.Error);
+                Console.WriteLine("---------------");
+                return time;
+            }
+            catch (Exception ex)
+            {
+                LogUtility.WriteToLog(path + "--" + ex.Message, LogUtility.Level.Error);
+                Print("Unknown error: " + path);
+                return null;
             }
 
-            //Console.WriteLine(String.Empty);
-            //Console.WriteLine(path);
-            //Console.WriteLine(String.Empty);
-
-            //Console.WriteLine("Tags in object  : " + image.TagTypes);
-            //Console.WriteLine(String.Empty);
-
-            //Console.WriteLine("Comment         : " + image.ImageTag.Comment);
-            //Console.Write("Keywords        : ");
-            //foreach (var keyword in image.ImageTag.Keywords)
-            //{
-            //    Console.Write(keyword + " ");
-            //}
-            //Console.WriteLine();
-            //Console.WriteLine("Rating          : " + image.ImageTag.Rating);
-            //Console.WriteLine("DateTime        : " + image.ImageTag.DateTime);
-            //Console.WriteLine("Orientation     : " + image.ImageTag.Orientation);
-            //Console.WriteLine("Software        : " + image.ImageTag.Software);
-            //Console.WriteLine("ExposureTime    : " + image.ImageTag.ExposureTime);
-            //Console.WriteLine("FNumber         : " + image.ImageTag.FNumber);
-            //Console.WriteLine("ISOSpeedRatings : " + image.ImageTag.ISOSpeedRatings);
-            //Console.WriteLine("FocalLength     : " + image.ImageTag.FocalLength);
-            //Console.WriteLine("FocalLength35mm : " + image.ImageTag.FocalLengthIn35mmFilm);
-            //Console.WriteLine("Make            : " + image.ImageTag.Make);
-            //Console.WriteLine("Model           : " + image.ImageTag.Model);
-
-            //if (image.Properties != null)
-            //{
-            //    Console.WriteLine("Width           : " + image.Properties.PhotoWidth);
-            //    Console.WriteLine("Height          : " + image.Properties.PhotoHeight);
-            //    Console.WriteLine("Type            : " + image.Properties.Description);
-            //}
-
-            //Console.WriteLine();
-            //Console.WriteLine("Writable?       : " + image.Writeable.ToString());
-            //Console.WriteLine("Corrupt?        : " + image.PossiblyCorrupt.ToString());
-
-            //if (image.PossiblyCorrupt)
-            //{
-            //    foreach (string reason in image.CorruptionReasons)
-            //    {
-            //        Console.WriteLine("    * " + reason);
-            //    }
-            //}
-
-            //Console.WriteLine("---------------------------------------");
+            return MetadataDateReader.SelectDate(directories) ?? LastWriteTime(path);
         }
 
         public static DateTime? GetRC2PhotoDate(string path)

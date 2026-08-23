@@ -1,0 +1,1 @@
+this is not an image file, just plain text used to verify the unsupported-format fallback path.
