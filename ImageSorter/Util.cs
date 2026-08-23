@@ -152,8 +152,9 @@ namespace ImageSorter
             }
         }
 
-        // Google Takeout-style sidecar metadata files use either the full source file name
-        // plus ".json" (photo.jpg.json) or the base name with the extension replaced (photo.json).
+        // Sidecar metadata files (e.g. Google Takeout exports) use either the full source file
+        // name plus ".json" (photo1265.jpg.json) or the base name with the extension replaced
+        // (photo1265.json) - both conventions occur in practice.
         public static string? GetCompanionJsonFile(string filePath)
         {
             var fullNameJson = filePath + ".json";
