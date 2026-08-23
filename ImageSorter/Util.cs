@@ -214,9 +214,14 @@ namespace ImageSorter
             return Path.Combine(destinationDir, "Duplicates", fileDate.Value.ToString("yyyy"), fileDate.Value.ToString("MM"), fileDate.Value.ToString("dd"));
         }
 
+        // .json sidecar files are never sorted on their own merit - they're moved as a companion
+        // of their image in CopyFile. Left in this list, they'd hit ParsePhotoDate directly and
+        // get logged as an unsupported file instead of being picked up alongside their photo.
         public static List<String> GetAllFiles(String directory)
         {
-            return Directory.GetFiles(directory, "*.*", SearchOption.AllDirectories).ToList();
+            return Directory.GetFiles(directory, "*.*", SearchOption.AllDirectories)
+                .Where(f => !string.Equals(Path.GetExtension(f), ".json", StringComparison.OrdinalIgnoreCase))
+                .ToList();
         }
 
         public static DateTime? ParsePhotoDate(string path)
