@@ -25,7 +25,7 @@ try
 }
 catch (DirectoryNotFoundException dirEx)
 {
-    Util.Print($"The selected directory could not be found: {inputArgs.SourceDir} asd");
+    Util.Print($"The selected directory could not be found: {inputArgs.SourceDir} - {dirEx.Message}");
     return;
 }
 
@@ -35,7 +35,7 @@ try
 }
 catch (DirectoryNotFoundException dirEx)
 {
-    Util.Print($"The selected directory could not be found: {inputArgs.DestinationDir} qwe");
+    Util.Print($"The selected directory could not be found: {inputArgs.DestinationDir} - {dirEx.Message}");
     return;
 }
 
@@ -75,7 +75,7 @@ Util.Print("Done getting files");
 
     Util.Print(_movedFiles.Count() + " copied to new folders");
     if (inputArgs.DeleteSource)
-        Util.DeleteCopiedFiles(_movedFiles, inputArgs.WhatIf);
+        Util.DeleteCopiedFiles(_movedFiles, inputArgs.SourceDir, inputArgs.WhatIf);
 
 
     Util.Print("----------- Image sorting finished -----------");
