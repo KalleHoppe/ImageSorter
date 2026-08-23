@@ -1,6 +1,7 @@
 using System.Linq;
 using MetadataExtractor;
 using MetadataExtractor.Formats.Exif;
+using MetadataExtractor.Formats.QuickTime;
 using Directory = MetadataExtractor.Directory;
 
 namespace ImageSorter
@@ -11,7 +12,8 @@ namespace ImageSorter
         {
             return TryTag<ExifSubIfdDirectory>(directories, ExifDirectoryBase.TagDateTimeOriginal)
                 ?? TryTag<ExifSubIfdDirectory>(directories, ExifDirectoryBase.TagDateTimeDigitized)
-                ?? TryTag<ExifIfd0Directory>(directories, ExifDirectoryBase.TagDateTime);
+                ?? TryTag<ExifIfd0Directory>(directories, ExifDirectoryBase.TagDateTime)
+                ?? TryTag<QuickTimeMovieHeaderDirectory>(directories, QuickTimeMovieHeaderDirectory.TagCreated);
         }
 
         private static DateTime? TryTag<TDirectory>(IReadOnlyList<Directory> directories, int tagType)

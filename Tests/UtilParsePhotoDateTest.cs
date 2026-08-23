@@ -20,6 +20,16 @@ namespace ImageSorterTests
         }
 
         [Fact]
+        public void ParsePhotoDate_QuickTimeMovWithCreatedDate_ReturnsThatDate()
+        {
+            var path = GetFixturePath("minimal-quicktime.mov");
+
+            var result = Util.ParsePhotoDate(path);
+
+            Assert.Equal(new DateTime(2024, 6, 1, 14, 45, 0), result);
+        }
+
+        [Fact]
         public void ParsePhotoDate_UnsupportedFormat_ReturnsNull()
         {
             var path = GetFixturePath("unsupported.txt");

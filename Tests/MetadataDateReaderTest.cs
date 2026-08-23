@@ -1,6 +1,7 @@
 using ImageSorter;
 using MetadataExtractor;
 using MetadataExtractor.Formats.Exif;
+using MetadataExtractor.Formats.QuickTime;
 using Xunit;
 using Directory = MetadataExtractor.Directory;
 
@@ -87,6 +88,33 @@ namespace ImageSorterTests
             ifd0.Set(ExifDirectoryBase.TagDateTime, modified);
 
             var result = MetadataDateReader.SelectDate(new List<Directory> { ifd0 });
+
+            Assert.Equal(modified, result);
+        }
+
+        [Fact]
+        public void SelectDate_OnlyQuickTimeCreated_FallsBackToIt()
+        {
+            var created = new DateTime(2024, 6, 1, 14, 45, 0);
+            var mvhd = new QuickTimeMovieHeaderDirectory();
+            mvhd.Set(QuickTimeMovieHeaderDirectory.TagCreated, created);
+
+            var result = MetadataDateReader.SelectDate(new List<Directory> { mvhd });
+
+            Assert.Equal(created, result);
+        }
+
+        [Fact]
+        public void SelectDate_Ifd0DateTimeAndQuickTimeCreated_PrefersIfd0DateTime()
+        {
+            var modified = new DateTime(2024, 3, 20, 12, 0, 0);
+            var created = new DateTime(2024, 6, 1, 14, 45, 0);
+            var ifd0 = new ExifIfd0Directory();
+            ifd0.Set(ExifDirectoryBase.TagDateTime, modified);
+            var mvhd = new QuickTimeMovieHeaderDirectory();
+            mvhd.Set(QuickTimeMovieHeaderDirectory.TagCreated, created);
+
+            var result = MetadataDateReader.SelectDate(new List<Directory> { ifd0, mvhd });
 
             Assert.Equal(modified, result);
         }
