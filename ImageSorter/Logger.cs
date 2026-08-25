@@ -22,7 +22,7 @@ namespace ImageSorter
         {
             Log.Logger = new LoggerConfiguration()
                 .MinimumLevel.Debug()
-                .WriteTo.File("Logs/imagesorter-.log", rollingInterval: RollingInterval.Day)
+                .WriteTo.File("Logs/imagesorter-.log", rollingInterval: RollingInterval.Hour)
                 .CreateLogger();
         }
 
@@ -44,11 +44,6 @@ namespace ImageSorter
             };
 
             Log.Write(eventLevel, exception, message);
-        }
-
-        public static void LogDuplicate(string message)
-        {
-            WriteToLog(message, Level.Info);
         }
 
         public static void LogMoved(string message)

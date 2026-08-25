@@ -19,6 +19,11 @@ Tests/Destination/
 *.[Gg][Ii][Ff]
 *.[Av][Ii]
 
+# Committed binary test fixtures (small, hand-built) - exempt from the blanket media-file ignores above.
+!Tests/Fixtures/*.jpg
+!Tests/Fixtures/*.jpeg
+!Tests/Fixtures/*.avi
+
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
 
@@ -357,3 +362,6 @@ MigrationBackup/
 
 # Ionide (cross platform F# VS Code tools) working folder
 .ionide/
+
+# Local Claude Code permission allowlist - session/machine specific
+.CLAUDE/settings.json
