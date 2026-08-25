@@ -46,11 +46,6 @@ namespace ImageSorter
             Log.Write(eventLevel, exception, message);
         }
 
-        public static void LogDuplicate(string message)
-        {
-            WriteToLog(message, Level.Info);
-        }
-
         public static void LogMoved(string message)
         {
             WriteToLog(message, Level.Info);

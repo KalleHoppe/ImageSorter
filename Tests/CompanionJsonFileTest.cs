@@ -102,7 +102,6 @@ namespace ImageSorterTests
             var root = CreateTempRoot();
             var sourceDir = Path.Combine(root, "source");
             var destinationDir = Path.Combine(root, "destination");
-            var duplicateDir = Path.Combine(root, "duplicate");
             Directory.CreateDirectory(sourceDir);
 
             var image = Path.Combine(sourceDir, "photo1265.jpg");
@@ -115,7 +114,7 @@ namespace ImageSorterTests
 
             try
             {
-                Util.CopyFile(movedFiles, destinationDir, newFullPath, duplicateDir, image);
+                Util.CopyFile(movedFiles, destinationDir, newFullPath, image, whatIf: false);
 
                 Assert.True(File.Exists(Path.Combine(destinationDir, "photo1265.jpg")));
                 Assert.True(File.Exists(Path.Combine(destinationDir, "photo1265.jpg.json")));
@@ -134,7 +133,6 @@ namespace ImageSorterTests
             var root = CreateTempRoot();
             var sourceDir = Path.Combine(root, "source");
             var destinationDir = Path.Combine(root, "destination");
-            var duplicateDir = Path.Combine(root, "duplicate");
             Directory.CreateDirectory(sourceDir);
 
             var image = Path.Combine(sourceDir, "photo1265.jpg");
@@ -147,7 +145,7 @@ namespace ImageSorterTests
 
             try
             {
-                Util.CopyFile(movedFiles, destinationDir, newFullPath, duplicateDir, image);
+                Util.CopyFile(movedFiles, destinationDir, newFullPath, image, whatIf: false);
 
                 Assert.True(File.Exists(Path.Combine(destinationDir, "photo1265.jpg")));
                 Assert.True(File.Exists(Path.Combine(destinationDir, "photo1265.json")));
@@ -166,7 +164,6 @@ namespace ImageSorterTests
             var root = CreateTempRoot();
             var sourceDir = Path.Combine(root, "source");
             var destinationDir = Path.Combine(root, "destination");
-            var duplicateDir = Path.Combine(root, "duplicate");
             Directory.CreateDirectory(sourceDir);
 
             var image = Path.Combine(sourceDir, "photo1265.jpg");
@@ -177,7 +174,7 @@ namespace ImageSorterTests
 
             try
             {
-                Util.CopyFile(movedFiles, destinationDir, newFullPath, duplicateDir, image);
+                Util.CopyFile(movedFiles, destinationDir, newFullPath, image, whatIf: false);
 
                 Assert.True(File.Exists(Path.Combine(destinationDir, "photo1265.jpg")));
                 Assert.Single(movedFiles);
@@ -190,12 +187,11 @@ namespace ImageSorterTests
         }
 
         [Fact]
-        public void CopyFile_ImageRedirectedToDuplicateFolder_CompanionJsonFollowsIt()
+        public void CopyFile_SameNameDifferentContent_CopiesWithHashSuffixAndRenamesCompanionJson()
         {
             var root = CreateTempRoot();
             var sourceDir = Path.Combine(root, "source");
             var destinationDir = Path.Combine(root, "destination");
-            var duplicateDir = Path.Combine(root, "duplicate");
             Directory.CreateDirectory(sourceDir);
             Directory.CreateDirectory(destinationDir);
 
@@ -204,20 +200,59 @@ namespace ImageSorterTests
             File.WriteAllText(image, "image bytes");
             File.WriteAllText(json, "{}");
 
-            // Pre-occupy the primary destination so CopyFile redirects this file to duplicateDir.
+            // A different file already occupies the destination name, so the size/hash check
+            // must find a mismatch and disambiguate rather than overwrite or skip.
             var newFullPath = Path.Combine(destinationDir, "photo1265.jpg");
-            File.WriteAllText(newFullPath, "a different photo already there");
+            File.WriteAllText(newFullPath, "a different photo already there, different length");
 
             var movedFiles = new List<string>();
 
             try
             {
-                Util.CopyFile(movedFiles, destinationDir, newFullPath, duplicateDir, image);
+                Util.CopyFile(movedFiles, destinationDir, newFullPath, image, whatIf: false);
 
-                Assert.False(File.Exists(Path.Combine(destinationDir, "photo1265.json")));
-                Assert.True(File.Exists(Path.Combine(duplicateDir, "photo1265.jpg")));
-                Assert.True(File.Exists(Path.Combine(duplicateDir, "photo1265.json")));
+                var disambiguated = Directory.GetFiles(destinationDir, "photo1265_*.jpg").SingleOrDefault();
+                Assert.NotNull(disambiguated);
+                Assert.Equal("image bytes", File.ReadAllText(disambiguated!));
+
+                var disambiguatedJson = Path.ChangeExtension(disambiguated, ".json");
+                Assert.True(File.Exists(disambiguatedJson));
+
+                Assert.Contains(image, movedFiles);
                 Assert.Contains(json, movedFiles);
+            }
+            finally
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+
+        [Fact]
+        public void CopyFile_SameNameIdenticalContent_SkipsCopyButStillTracksSourceForDeletion()
+        {
+            var root = CreateTempRoot();
+            var sourceDir = Path.Combine(root, "source");
+            var destinationDir = Path.Combine(root, "destination");
+            Directory.CreateDirectory(sourceDir);
+            Directory.CreateDirectory(destinationDir);
+
+            var image = Path.Combine(sourceDir, "photo1265.jpg");
+            File.WriteAllText(image, "identical bytes");
+
+            var newFullPath = Path.Combine(destinationDir, "photo1265.jpg");
+            File.WriteAllText(newFullPath, "identical bytes");
+            var originalWriteTime = File.GetLastWriteTimeUtc(newFullPath);
+
+            var movedFiles = new List<string>();
+
+            try
+            {
+                Util.CopyFile(movedFiles, destinationDir, newFullPath, image, whatIf: false);
+
+                // Only the pre-existing destination file remains - nothing else was written there.
+                Assert.Single(Directory.GetFiles(destinationDir));
+                Assert.Equal(originalWriteTime, File.GetLastWriteTimeUtc(newFullPath));
+                Assert.Contains(image, movedFiles);
             }
             finally
             {
@@ -231,7 +266,6 @@ namespace ImageSorterTests
             var root = CreateTempRoot();
             var sourceDir = Path.Combine(root, "source");
             var destinationDir = Path.Combine(root, "destination");
-            var duplicateDir = Path.Combine(root, "duplicate");
             Directory.CreateDirectory(sourceDir);
             Directory.CreateDirectory(destinationDir);
 
@@ -248,7 +282,7 @@ namespace ImageSorterTests
 
             try
             {
-                Util.CopyFile(movedFiles, destinationDir, newFullPath, duplicateDir, image);
+                Util.CopyFile(movedFiles, destinationDir, newFullPath, image, whatIf: false);
 
                 Assert.Equal("{\"source\":false}", File.ReadAllText(existingDestinationJson));
                 Assert.DoesNotContain(json, movedFiles);

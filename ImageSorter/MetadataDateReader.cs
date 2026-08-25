@@ -27,5 +27,20 @@ namespace ImageSorter
 
             return null;
         }
+
+        // Not used to decide whether two files are the same - a content hash already answers
+        // that definitively. This is only surfaced as human-readable context in the log when a
+        // hash mismatch confirms two same-named files are genuinely different.
+        public static string? SelectCameraModel(IReadOnlyList<Directory> directories)
+        {
+            foreach (var directory in directories.OfType<ExifIfd0Directory>())
+            {
+                var model = directory.GetDescription(ExifDirectoryBase.TagModel);
+                if (!string.IsNullOrWhiteSpace(model))
+                    return model;
+            }
+
+            return null;
+        }
     }
 }

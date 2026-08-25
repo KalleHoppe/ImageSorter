@@ -58,25 +58,9 @@ Util.Print("Done getting files");
             {
                 //Create new paths
                 var newDesitnationFolder = Util.GetNewDestinationFolder(inputArgs, fileDate);
-                var duplicateDestinationFolder = Util.GetDuplicateDestinationFolder(inputArgs.DestinationDir, fileDate);
                 var newFullPath = Path.Combine(newDesitnationFolder, Path.GetFileName(file));
-                //Print(file + " ==> " + newFullPath);
 
-                if (inputArgs.WhatIf)
-                {
-                     Util.Print("Will move " + file + " ==> " + newFullPath);
-                    _movedFiles.Add(file);
-
-                    var companionJson = Util.GetCompanionJsonFile(file);
-                    if (companionJson != null)
-                    {
-                        var newJsonPath = Path.Combine(newDesitnationFolder, Path.GetFileName(companionJson));
-                        Util.Print("Will move " + companionJson + " ==> " + newJsonPath);
-                        _movedFiles.Add(companionJson);
-                    }
-                }
-                else
-                { Util.CopyFile(_movedFiles, newDesitnationFolder, newFullPath, duplicateDestinationFolder, file); }
+                Util.CopyFile(_movedFiles, newDesitnationFolder, newFullPath, file, inputArgs.WhatIf);
             }
         }
     });

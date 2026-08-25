@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -115,40 +116,179 @@ namespace ImageSorter
 
         private static string NormalizePath(string path) => Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
 
-        public static void CopyFile(List<string> movedFiles, string newDesitnationFolder, string newFullPath, string duplicateDesitnationFolder, string file)
+        private enum CollisionKind { 
+            None, //No collision, safe to copy
+            Identical, //Destination already has a byte-identical copy, skip writing
+            Different //Destination has a different file with the same name, disambiguate and copy
+            }
+
+        private sealed class CollisionResolution
         {
+            public CollisionKind Kind;
+            public string? DisambiguationSuffix;
+            public string? SourceCameraModel;
+            public string? ExistingCameraModel;
+        }
+
+        // Colliding files are compared read-only (size, then a full content hash) outside the
+        // lock so an expensive comparison of one collision (e.g. a large video) doesn't stall
+        // every other file a parallel worker is trying to copy - only the final decide-and-write
+        // step below needs to be serialized.
+        public static void CopyFile(List<string> movedFiles, string newDesitnationFolder, string newFullPath, string file, bool whatIf)
+        {
+            var resolution = ResolveCollision(file, newFullPath);
+
             lock (CopyFileLock)
             {
-                //If the dir is missing, create a new and move the file
-                if (!Directory.Exists(newDesitnationFolder))
+                // Two different source files can race for the same destination name - if our
+                // lock-free check above found nothing but a collision has since appeared, resolve
+                // it again now that we hold the lock.
+                if (resolution.Kind == CollisionKind.None && File.Exists(newFullPath))
+                    resolution = ResolveCollision(file, newFullPath);
+
+                if (!whatIf && !Directory.Exists(newDesitnationFolder))
                 {
                     Directory.CreateDirectory(newDesitnationFolder);
                 }
 
-                //Move the file to the corresponding directory
-                if (File.Exists(newFullPath))
+                switch (resolution.Kind)
                 {
-                    newFullPath = Path.Combine(duplicateDesitnationFolder, Path.GetFileName(file));
-                    if (!Directory.Exists(duplicateDesitnationFolder))
-                    {
-                        Directory.CreateDirectory(duplicateDesitnationFolder);
-                    }
-                    Print("File " + file + " already in " + newFullPath);
-                    LogUtility.LogDuplicate("Moved file to " + newFullPath);
+                    case CollisionKind.None:
+                        CopyNewFile(movedFiles, file, newFullPath, whatIf);
+                        break;
+                    case CollisionKind.Identical:
+                        SkipIdenticalFile(movedFiles, file, newFullPath, whatIf);
+                        break;
+                    case CollisionKind.Different:
+                        CopyDisambiguatedFile(movedFiles, file, newDesitnationFolder, resolution, whatIf);
+                        break;
                 }
+            }
+        }
 
-                if (!File.Exists(newFullPath))
-                {
-                    File.Copy(file, newFullPath);
-                    Print("Moved " + file + " ==> " + newFullPath);
-                    movedFiles.Add(file);
+        private static void CopyNewFile(List<string> movedFiles, string file, string newFullPath, bool whatIf)
+        {
+            var destinationFolder = Path.GetDirectoryName(newFullPath)!;
 
-                    CopyCompanionJsonFile(movedFiles, file, Path.GetDirectoryName(newFullPath)!);
-                }
-                else
+            if (whatIf)
+            {
+                Print("Will move " + file + " ==> " + newFullPath);
+                movedFiles.Add(file);
+                CopyCompanionJsonFile(movedFiles, file, destinationFolder, disambiguatedImageFileName: null, whatIf: true);
+                return;
+            }
+
+            File.Copy(file, newFullPath);
+            Print("Moved " + file + " ==> " + newFullPath);
+            movedFiles.Add(file);
+            CopyCompanionJsonFile(movedFiles, file, destinationFolder, disambiguatedImageFileName: null, whatIf: false);
+        }
+
+        // The destination already holds a byte-identical copy, so there's nothing to write - but
+        // the source is still safe to delete under -d, and a companion JSON the destination is
+        // missing should still be picked up.
+        private static void SkipIdenticalFile(List<string> movedFiles, string file, string newFullPath, bool whatIf)
+        {
+            var destinationFolder = Path.GetDirectoryName(newFullPath)!;
+
+            Print((whatIf ? "Would skip " : "Skipped ") + file + " - identical file already exists at " + newFullPath);
+            movedFiles.Add(file);
+            CopyCompanionJsonFile(movedFiles, file, destinationFolder, disambiguatedImageFileName: null, whatIf);
+        }
+
+        // Same name and date, but confirmed different content - keep both by disambiguating the
+        // destination filename with a hash suffix instead of routing to a separate folder.
+        private static void CopyDisambiguatedFile(List<string> movedFiles, string file, string newDesitnationFolder, CollisionResolution resolution, bool whatIf)
+        {
+            var disambiguatedFileName = BuildDisambiguatedFileName(Path.GetFileName(file), resolution.DisambiguationSuffix!);
+            var disambiguatedFullPath = Path.Combine(newDesitnationFolder, disambiguatedFileName);
+            var cameraModelNote = " (source: " + (resolution.SourceCameraModel ?? "unknown") + ", existing: " + (resolution.ExistingCameraModel ?? "unknown") + ")";
+
+            if (File.Exists(disambiguatedFullPath))
+            {
+                // Vanishingly unlikely (would need matching size plus a truncated-hash collision),
+                // but don't silently overwrite or drop the file if it somehow happens.
+                Print("File " + file + " not copied, a different file already exists at " + disambiguatedFullPath);
+                return;
+            }
+
+            if (whatIf)
+            {
+                Print("Will move " + file + " ==> " + disambiguatedFullPath + " (different file with same name" + cameraModelNote + ")");
+                movedFiles.Add(file);
+                CopyCompanionJsonFile(movedFiles, file, newDesitnationFolder, disambiguatedFileName, whatIf: true);
+                return;
+            }
+
+            File.Copy(file, disambiguatedFullPath);
+            Print("Moved " + file + " ==> " + disambiguatedFullPath + " (different file with same name" + cameraModelNote + ")");
+            movedFiles.Add(file);
+            CopyCompanionJsonFile(movedFiles, file, newDesitnationFolder, disambiguatedFileName, whatIf: false);
+        }
+
+        private static string BuildDisambiguatedFileName(string fileName, string disambiguationSuffix)
+        {
+            var extension = Path.GetExtension(fileName);
+            var baseName = Path.GetFileNameWithoutExtension(fileName);
+            return baseName + "_" + disambiguationSuffix + extension;
+        }
+
+        private static CollisionResolution ResolveCollision(string file, string newFullPath)
+        {
+            if (!File.Exists(newFullPath))
+                return new CollisionResolution { Kind = CollisionKind.None };
+
+            string? sourceHash = null;
+            var identical = false;
+
+            if (new FileInfo(file).Length == new FileInfo(newFullPath).Length)
+            {
+                try
                 {
-                    Print("File " + newFullPath + " not copied, It already exist in destination and duplicate folder");
+                    sourceHash = ComputeFileHash(file);
+                    identical = string.Equals(sourceHash, ComputeFileHash(newFullPath), StringComparison.Ordinal);
                 }
+                catch (IOException ex)
+                {
+                    LogUtility.WriteToLog("Could not verify identity of " + file + " against " + newFullPath + ", treating as a different file: " + ex.Message, LogUtility.Level.Error);
+                }
+            }
+
+            if (identical)
+                return new CollisionResolution { Kind = CollisionKind.Identical };
+
+            if (sourceHash == null)
+            {
+                try { sourceHash = ComputeFileHash(file); }
+                catch (IOException) { /* fall back to a random suffix below */ }
+            }
+
+            return new CollisionResolution
+            {
+                Kind = CollisionKind.Different,
+                DisambiguationSuffix = sourceHash != null ? sourceHash[..8] : Guid.NewGuid().ToString("N")[..8],
+                SourceCameraModel = GetCameraModel(file),
+                ExistingCameraModel = GetCameraModel(newFullPath)
+            };
+        }
+
+        private static string ComputeFileHash(string path)
+        {
+            using var stream = File.OpenRead(path);
+            return Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant();
+        }
+
+        private static string? GetCameraModel(string path)
+        {
+            try
+            {
+                var directories = MetadataExtractor.ImageMetadataReader.ReadMetadata(path);
+                return MetadataDateReader.SelectCameraModel(directories);
+            }
+            catch (Exception)
+            {
+                // Best-effort log context only - never let this affect the collision decision.
+                return null;
             }
         }
 
@@ -168,26 +308,44 @@ namespace ImageSorter
             return null;
         }
 
-        // Places the companion JSON next to wherever its image actually ended up (which CopyFile
-        // may have redirected to the duplicate folder), reusing the date already parsed from the
-        // image's own metadata rather than re-reading the JSON - the destination is already known,
-        // so there's nothing left to extract from it.
-        private static void CopyCompanionJsonFile(List<string> movedFiles, string file, string destinationFolder)
+        // Places the companion JSON next to wherever its image actually ended up. When the image
+        // was disambiguated with a hash suffix (disambiguatedImageFileName set), the sidecar is
+        // renamed to match so the pairing convention GetCompanionJsonFile relies on stays intact.
+        private static void CopyCompanionJsonFile(List<string> movedFiles, string file, string destinationFolder, string? disambiguatedImageFileName, bool whatIf)
         {
             var companionJson = GetCompanionJsonFile(file);
             if (companionJson == null)
                 return;
 
-            var newJsonPath = Path.Combine(destinationFolder, Path.GetFileName(companionJson));
+            var newJsonFileName = disambiguatedImageFileName == null
+                ? Path.GetFileName(companionJson)
+                : BuildDisambiguatedCompanionJsonName(companionJson, Path.GetFileName(file), disambiguatedImageFileName);
+            var newJsonPath = Path.Combine(destinationFolder, newJsonFileName);
+
             if (File.Exists(newJsonPath))
             {
                 Print("Companion JSON " + newJsonPath + " not copied, it already exists at the destination");
                 return;
             }
 
+            if (whatIf)
+            {
+                Print("Will move " + companionJson + " ==> " + newJsonPath);
+                movedFiles.Add(companionJson);
+                return;
+            }
+
             File.Copy(companionJson, newJsonPath);
             Print("Moved " + companionJson + " ==> " + newJsonPath);
             movedFiles.Add(companionJson);
+        }
+
+        private static string BuildDisambiguatedCompanionJsonName(string companionJsonPath, string originalImageFileName, string disambiguatedImageFileName)
+        {
+            var isFullNamePattern = string.Equals(Path.GetFileName(companionJsonPath), originalImageFileName + ".json", StringComparison.OrdinalIgnoreCase);
+            return isFullNamePattern
+                ? disambiguatedImageFileName + ".json"
+                : Path.ChangeExtension(disambiguatedImageFileName, ".json");
         }
 
         public static void Print(string message)
@@ -204,14 +362,6 @@ namespace ImageSorter
                 return inputArgs.DestinationDir;
 
             return Path.Combine(inputArgs.DestinationDir, fileDate.Value.ToString("yyyy"), fileDate.Value.ToString("MM"), fileDate.Value.ToString("dd"));
-        }
-
-        public static string GetDuplicateDestinationFolder(string destinationDir, DateTime? fileDate)
-        {
-            if (!fileDate.HasValue)
-                return destinationDir;
-
-            return Path.Combine(destinationDir, "Duplicates", fileDate.Value.ToString("yyyy"), fileDate.Value.ToString("MM"), fileDate.Value.ToString("dd"));
         }
 
         // .json sidecar files are never sorted on their own merit - they're moved as a companion

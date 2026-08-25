@@ -68,10 +68,9 @@ namespace ImageSorterTests
                         }
 
                         var newDestinationFolder = Util.GetNewDestinationFolder(inputArgs, fileDate);
-                        var duplicateDestinationFolder = Util.GetDuplicateDestinationFolder(inputArgs.DestinationDir, fileDate);
                         var newFullPath = Path.Combine(newDestinationFolder, Path.GetFileName(file));
 
-                        Util.CopyFile(movedFiles, newDestinationFolder, newFullPath, duplicateDestinationFolder, file);
+                        Util.CopyFile(movedFiles, newDestinationFolder, newFullPath, file, whatIf: false);
                     }
                     catch (Exception ex)
                     {
