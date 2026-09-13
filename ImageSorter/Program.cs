@@ -60,6 +60,12 @@ Util.Print("Done getting files");
         MaxDegreeOfParallelism = inputArgs.ConvertHeicToJpeg ? Math.Max(1, Environment.ProcessorCount / 2) : -1
     };
 
+    // Per-file detail (moved/skipped/converted/etc.) goes to the log only - see Util.LogOnly.
+    // The console instead gets just this running counter, so a large batch always shows visible
+    // progress instead of going silent for the several seconds a HEIC decode can take.
+    var totalFiles = files.Count;
+    var processedCount = 0;
+
     Parallel.ForEach(files, parallelOptions, file =>
     {
         {
@@ -75,18 +81,17 @@ Util.Print("Done getting files");
                 if (inputArgs.ConvertHeicToJpeg && HeicConverter.IsHeicFile(file))
                 {
                     if (inputArgs.WhatIf)
-                        Util.Print("Would create JPEG copy: " + Path.ChangeExtension(newFullPath, ".jpg"));
+                        Util.LogOnly("Would create JPEG copy: " + Path.ChangeExtension(newFullPath, ".jpg"));
                     else
-                    {
-                        // Decoding a real photo can take several seconds with no other output in
-                        // between - print before starting so a large batch doesn't look stuck.
-                        Util.Print("Converting HEIC to JPEG: " + file + " ...");
                         heicJpegBytes = HeicConverter.TryConvertToJpeg(file);
-                    }
                 }
 
                 Util.CopyFile(_movedFiles, newDesitnationFolder, newFullPath, file, inputArgs.WhatIf, heicJpegBytes);
             }
+
+            var completed = Interlocked.Increment(ref processedCount);
+            var percent = totalFiles == 0 ? 100 : completed * 100 / totalFiles;
+            Console.WriteLine($"Processed {completed}/{totalFiles} files ({percent}%)");
         }
     });
 
@@ -97,7 +102,7 @@ Util.Print("Done getting files");
 
     Util.Print("----------- Image sorting finished -----------");
     Util.Print(_movedFiles.Count() + " files have been sorted to the new " + inputArgs.DestinationDir);
-    Util.Print("See the log for details");
+    Util.Print("Log file: " + LogUtility.CurrentLogFileUri);
     Console.ReadLine();
 
 Serilog.Log.CloseAndFlush();

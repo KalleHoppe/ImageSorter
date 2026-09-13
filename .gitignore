@@ -17,6 +17,11 @@ Tests/Destination/
 # Real personal photos used for local manual testing only - never committed.
 Tests/Fixtures/02/
 Tests/Fixtures/03/
+
+# Six Labors license file - account-bound, never committed. Place at
+# ImageSorter/sixlabors.lic; SixLabors.ImageSharp.targets finds it via a
+# recursive glob rooted at the project directory.
+sixlabors.lic
 *.[Jj][Pp][Gg]
 *.[Jj][Pp][Ee][Gg]
 *.[Pp][Nn][Gg]

@@ -18,11 +18,18 @@ namespace ImageSorter
 
         #endregion
 
+        // One fixed file per run (rather than Serilog's hourly-rolling shared file) so the path
+        // reported at the end of a run unambiguously points at that run's own log.
+        public static string CurrentLogFilePath { get; private set; } = string.Empty;
+        public static string CurrentLogFileUri => new Uri(CurrentLogFilePath).AbsoluteUri;
+
         public static void Init()
         {
+            CurrentLogFilePath = Path.GetFullPath(Path.Combine("Logs", $"imagesorter-{DateTime.Now:yyyyMMdd_HHmmss}.log"));
+
             Log.Logger = new LoggerConfiguration()
                 .MinimumLevel.Debug()
-                .WriteTo.File("Logs/imagesorter-.log", rollingInterval: RollingInterval.Hour)
+                .WriteTo.File(CurrentLogFilePath)
                 .CreateLogger();
         }
 

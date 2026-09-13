@@ -53,8 +53,7 @@ namespace ImageSorter
             if (whatIf)
             {
                 Parallel.ForEach(_movedFiles, file => {
-                    Console.WriteLine("Would be deleted: " + file);
-                    LogUtility.WriteToLog("Would be deleted: " + file, LogUtility.Level.Info);
+                    LogOnly("Would be deleted: " + file);
                 });
                 DeleteEmptyDirectoriesCascading(parentDirectories, sourceDir, whatIf: true);
                 return;
@@ -62,7 +61,7 @@ namespace ImageSorter
 
             Parallel.ForEach(_movedFiles, file => {
                 File.Delete(file);
-                Print(file + " deleted");
+                LogOnly(file + " deleted");
             });
 
             DeleteEmptyDirectoriesCascading(parentDirectories, sourceDir, whatIf: false);
@@ -102,11 +101,11 @@ namespace ImageSorter
                     removed.Add(directory);
 
                     if (whatIf)
-                        Print("Would delete empty folder: " + directory);
+                        LogOnly("Would delete empty folder: " + directory);
                     else
                     {
                         Directory.Delete(directory);
-                        Print("Deleted empty folder: " + directory);
+                        LogOnly("Deleted empty folder: " + directory);
                     }
 
                     var parent = Path.GetDirectoryName(directory);
@@ -176,14 +175,14 @@ namespace ImageSorter
 
             if (whatIf)
             {
-                Print("Will move " + file + " ==> " + newFullPath);
+                LogOnly("Will move " + file + " ==> " + newFullPath);
                 movedFiles.Add(file);
                 CopyCompanionJsonFile(movedFiles, file, destinationFolder, disambiguatedImageFileName: null, whatIf: true);
                 return;
             }
 
             File.Copy(file, newFullPath);
-            Print("Moved " + file + " ==> " + newFullPath);
+            LogOnly("Moved " + file + " ==> " + newFullPath);
             movedFiles.Add(file);
             CopyCompanionJsonFile(movedFiles, file, destinationFolder, disambiguatedImageFileName: null, whatIf: false);
             WriteHeicJpegSibling(newFullPath, heicJpegBytes);
@@ -196,7 +195,7 @@ namespace ImageSorter
         {
             var destinationFolder = Path.GetDirectoryName(newFullPath)!;
 
-            Print((whatIf ? "Would skip " : "Skipped ") + file + " - identical file already exists at " + newFullPath);
+            LogOnly((whatIf ? "Would skip " : "Skipped ") + file + " - identical file already exists at " + newFullPath);
             movedFiles.Add(file);
             CopyCompanionJsonFile(movedFiles, file, destinationFolder, disambiguatedImageFileName: null, whatIf);
             if (!whatIf)
@@ -221,14 +220,14 @@ namespace ImageSorter
 
             if (whatIf)
             {
-                Print("Will move " + file + " ==> " + disambiguatedFullPath + " (different file with same name" + cameraModelNote + ")");
+                LogOnly("Will move " + file + " ==> " + disambiguatedFullPath + " (different file with same name" + cameraModelNote + ")");
                 movedFiles.Add(file);
                 CopyCompanionJsonFile(movedFiles, file, newDesitnationFolder, disambiguatedFileName, whatIf: true);
                 return;
             }
 
             File.Copy(file, disambiguatedFullPath);
-            Print("Moved " + file + " ==> " + disambiguatedFullPath + " (different file with same name" + cameraModelNote + ")");
+            LogOnly("Moved " + file + " ==> " + disambiguatedFullPath + " (different file with same name" + cameraModelNote + ")");
             movedFiles.Add(file);
             CopyCompanionJsonFile(movedFiles, file, newDesitnationFolder, disambiguatedFileName, whatIf: false);
             WriteHeicJpegSibling(disambiguatedFullPath, heicJpegBytes);
@@ -249,14 +248,14 @@ namespace ImageSorter
             if (!File.Exists(jpegPath))
             {
                 File.WriteAllBytes(jpegPath, heicJpegBytes);
-                Print("Created JPEG copy " + jpegPath);
+                LogOnly("Created JPEG copy " + jpegPath);
                 return;
             }
 
             var jpegHash = Convert.ToHexString(SHA256.HashData(heicJpegBytes)).ToLowerInvariant();
             if (string.Equals(jpegHash, ComputeFileHash(jpegPath), StringComparison.Ordinal))
             {
-                Print("Skipped JPEG copy - identical file already exists at " + jpegPath);
+                LogOnly("Skipped JPEG copy - identical file already exists at " + jpegPath);
                 return;
             }
 
@@ -271,7 +270,7 @@ namespace ImageSorter
             }
 
             File.WriteAllBytes(disambiguatedJpegPath, heicJpegBytes);
-            Print("Created JPEG copy " + disambiguatedJpegPath + " (different file already existed at " + jpegPath + ")");
+            LogOnly("Created JPEG copy " + disambiguatedJpegPath + " (different file already existed at " + jpegPath + ")");
         }
 
         private static string BuildDisambiguatedFileName(string fileName, string disambiguationSuffix)
@@ -372,19 +371,19 @@ namespace ImageSorter
 
             if (File.Exists(newJsonPath))
             {
-                Print("Companion JSON " + newJsonPath + " not copied, it already exists at the destination");
+                LogOnly("Companion JSON " + newJsonPath + " not copied, it already exists at the destination");
                 return;
             }
 
             if (whatIf)
             {
-                Print("Will move " + companionJson + " ==> " + newJsonPath);
+                LogOnly("Will move " + companionJson + " ==> " + newJsonPath);
                 movedFiles.Add(companionJson);
                 return;
             }
 
             File.Copy(companionJson, newJsonPath);
-            Print("Moved " + companionJson + " ==> " + newJsonPath);
+            LogOnly("Moved " + companionJson + " ==> " + newJsonPath);
             movedFiles.Add(companionJson);
         }
 
@@ -399,6 +398,15 @@ namespace ImageSorter
         public static void Print(string message)
         {
             Console.WriteLine(message);
+            LogUtility.WriteToLog(message, LogUtility.Level.Info);
+        }
+
+        // Routine per-file detail (a normal move, skip, or companion-file copy) goes to the log
+        // only - the console shows just the running progress counter from Program.cs. Anomalies
+        // (a file that couldn't be moved/created at all) still go through Print so they surface
+        // immediately instead of being buried in a large batch's log file.
+        public static void LogOnly(string message)
+        {
             LogUtility.WriteToLog(message, LogUtility.Level.Info);
         }
 
