@@ -50,7 +50,17 @@ Util.Print("Done getting files");
 
     //Loop thru files
 
-    Parallel.ForEach(files , file =>
+    // Decoding+encoding a HEIC file is CPU- and memory-heavy (each decoded frame is an
+    // uncompressed pixel buffer, e.g. ~48MB for a 12MP photo) - running unlimited HEIC
+    // conversions concurrently across every worker thread at once can exhaust memory on
+    // large batches and make the whole run appear to hang. Cap concurrency only when the
+    // flag is on; every other file still gets the default full parallelism.
+    var parallelOptions = new ParallelOptions
+    {
+        MaxDegreeOfParallelism = inputArgs.ConvertHeicToJpeg ? Math.Max(1, Environment.ProcessorCount / 2) : -1
+    };
+
+    Parallel.ForEach(files, parallelOptions, file =>
     {
         {
             //For each file read date from exif
@@ -67,7 +77,12 @@ Util.Print("Done getting files");
                     if (inputArgs.WhatIf)
                         Util.Print("Would create JPEG copy: " + Path.ChangeExtension(newFullPath, ".jpg"));
                     else
+                    {
+                        // Decoding a real photo can take several seconds with no other output in
+                        // between - print before starting so a large batch doesn't look stuck.
+                        Util.Print("Converting HEIC to JPEG: " + file + " ...");
                         heicJpegBytes = HeicConverter.TryConvertToJpeg(file);
+                    }
                 }
 
                 Util.CopyFile(_movedFiles, newDesitnationFolder, newFullPath, file, inputArgs.WhatIf, heicJpegBytes);
