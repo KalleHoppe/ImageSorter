@@ -13,6 +13,7 @@ if (args.Length < 1)
         Console.WriteLine("Params:");
         Console.WriteLine("-whatif \t Runs the script and displays output without commiting the canges.");
         Console.WriteLine("-d \t Deletes the source files sorting and copying the files to the destination folder.");
+        Console.WriteLine("-heic2jpg \t Also creates a JPEG copy alongside any HEIC/HEIF file that is moved.");
         LogUtility.WriteToLog("No Params", LogUtility.Level.Error);
         return;
     }
@@ -60,7 +61,16 @@ Util.Print("Done getting files");
                 var newDesitnationFolder = Util.GetNewDestinationFolder(inputArgs, fileDate);
                 var newFullPath = Path.Combine(newDesitnationFolder, Path.GetFileName(file));
 
-                Util.CopyFile(_movedFiles, newDesitnationFolder, newFullPath, file, inputArgs.WhatIf);
+                byte[]? heicJpegBytes = null;
+                if (inputArgs.ConvertHeicToJpeg && HeicConverter.IsHeicFile(file))
+                {
+                    if (inputArgs.WhatIf)
+                        Util.Print("Would create JPEG copy: " + Path.ChangeExtension(newFullPath, ".jpg"));
+                    else
+                        heicJpegBytes = HeicConverter.TryConvertToJpeg(file);
+                }
+
+                Util.CopyFile(_movedFiles, newDesitnationFolder, newFullPath, file, inputArgs.WhatIf, heicJpegBytes);
             }
         }
     });

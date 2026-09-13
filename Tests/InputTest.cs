@@ -10,7 +10,7 @@ namespace ImageSorterTests
         [InlineData("/home/user/source/")]
         public void Constructor_AbsolutePath_DoesNotThrow(string sourceDir)
         {
-            var input = new Input(sourceDir, "/home/user/dest", delete: false, whatIf: false);
+            var input = new Input(sourceDir, "/home/user/dest", delete: false, whatIf: false, convertHeicToJpeg: false);
 
             Assert.Equal(sourceDir, input.SourceDir);
         }
@@ -20,15 +20,23 @@ namespace ImageSorterTests
         [InlineData("just-a-name")]
         public void Constructor_RelativePath_ThrowsArgumentException(string relativeDir)
         {
-            Assert.Throws<ArgumentException>(() => new Input(relativeDir, "/home/user/dest", delete: false, whatIf: false));
+            Assert.Throws<ArgumentException>(() => new Input(relativeDir, "/home/user/dest", delete: false, whatIf: false, convertHeicToJpeg: false));
         }
 
         [Fact]
         public void Constructor_TrimsTrailingSeparator_FromDestinationDir()
         {
-            var input = new Input("/home/user/source", "/home/user/dest/", delete: false, whatIf: false);
+            var input = new Input("/home/user/source", "/home/user/dest/", delete: false, whatIf: false, convertHeicToJpeg: false);
 
             Assert.Equal("/home/user/dest", input.DestinationDir);
+        }
+
+        [Fact]
+        public void Constructor_SetsConvertHeicToJpeg()
+        {
+            var input = new Input("/home/user/source", "/home/user/dest", delete: false, whatIf: false, convertHeicToJpeg: true);
+
+            Assert.True(input.ConvertHeicToJpeg);
         }
     }
 }

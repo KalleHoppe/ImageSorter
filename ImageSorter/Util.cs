@@ -20,6 +20,7 @@ namespace ImageSorter
             string destinationDir = args[1];
             bool deleteSource = false;
             bool whatIf = false;
+            bool convertHeicToJpeg = false;
             foreach (var str in args.Where(str => !string.IsNullOrEmpty(str)))
             {
                 switch (str)
@@ -30,9 +31,12 @@ namespace ImageSorter
                     case "-whatif":
                         whatIf = true;
                         break;
+                    case "-heic2jpg":
+                        convertHeicToJpeg = true;
+                        break;
                 }
             }
-            var inputArgs = new Input(sourceDir, destinationDir, deleteSource, whatIf);
+            var inputArgs = new Input(sourceDir, destinationDir, deleteSource, whatIf, convertHeicToJpeg);
             return inputArgs;
         }
 
@@ -134,7 +138,7 @@ namespace ImageSorter
         // lock so an expensive comparison of one collision (e.g. a large video) doesn't stall
         // every other file a parallel worker is trying to copy - only the final decide-and-write
         // step below needs to be serialized.
-        public static void CopyFile(List<string> movedFiles, string newDesitnationFolder, string newFullPath, string file, bool whatIf)
+        public static void CopyFile(List<string> movedFiles, string newDesitnationFolder, string newFullPath, string file, bool whatIf, byte[]? heicJpegBytes = null)
         {
             var resolution = ResolveCollision(file, newFullPath);
 
@@ -154,19 +158,19 @@ namespace ImageSorter
                 switch (resolution.Kind)
                 {
                     case CollisionKind.None:
-                        CopyNewFile(movedFiles, file, newFullPath, whatIf);
+                        CopyNewFile(movedFiles, file, newFullPath, whatIf, heicJpegBytes);
                         break;
                     case CollisionKind.Identical:
-                        SkipIdenticalFile(movedFiles, file, newFullPath, whatIf);
+                        SkipIdenticalFile(movedFiles, file, newFullPath, whatIf, heicJpegBytes);
                         break;
                     case CollisionKind.Different:
-                        CopyDisambiguatedFile(movedFiles, file, newDesitnationFolder, resolution, whatIf);
+                        CopyDisambiguatedFile(movedFiles, file, newDesitnationFolder, resolution, whatIf, heicJpegBytes);
                         break;
                 }
             }
         }
 
-        private static void CopyNewFile(List<string> movedFiles, string file, string newFullPath, bool whatIf)
+        private static void CopyNewFile(List<string> movedFiles, string file, string newFullPath, bool whatIf, byte[]? heicJpegBytes)
         {
             var destinationFolder = Path.GetDirectoryName(newFullPath)!;
 
@@ -182,23 +186,26 @@ namespace ImageSorter
             Print("Moved " + file + " ==> " + newFullPath);
             movedFiles.Add(file);
             CopyCompanionJsonFile(movedFiles, file, destinationFolder, disambiguatedImageFileName: null, whatIf: false);
+            WriteHeicJpegSibling(newFullPath, heicJpegBytes);
         }
 
         // The destination already holds a byte-identical copy, so there's nothing to write - but
         // the source is still safe to delete under -d, and a companion JSON the destination is
         // missing should still be picked up.
-        private static void SkipIdenticalFile(List<string> movedFiles, string file, string newFullPath, bool whatIf)
+        private static void SkipIdenticalFile(List<string> movedFiles, string file, string newFullPath, bool whatIf, byte[]? heicJpegBytes)
         {
             var destinationFolder = Path.GetDirectoryName(newFullPath)!;
 
             Print((whatIf ? "Would skip " : "Skipped ") + file + " - identical file already exists at " + newFullPath);
             movedFiles.Add(file);
             CopyCompanionJsonFile(movedFiles, file, destinationFolder, disambiguatedImageFileName: null, whatIf);
+            if (!whatIf)
+                WriteHeicJpegSibling(newFullPath, heicJpegBytes);
         }
 
         // Same name and date, but confirmed different content - keep both by disambiguating the
         // destination filename with a hash suffix instead of routing to a separate folder.
-        private static void CopyDisambiguatedFile(List<string> movedFiles, string file, string newDesitnationFolder, CollisionResolution resolution, bool whatIf)
+        private static void CopyDisambiguatedFile(List<string> movedFiles, string file, string newDesitnationFolder, CollisionResolution resolution, bool whatIf, byte[]? heicJpegBytes)
         {
             var disambiguatedFileName = BuildDisambiguatedFileName(Path.GetFileName(file), resolution.DisambiguationSuffix!);
             var disambiguatedFullPath = Path.Combine(newDesitnationFolder, disambiguatedFileName);
@@ -224,6 +231,47 @@ namespace ImageSorter
             Print("Moved " + file + " ==> " + disambiguatedFullPath + " (different file with same name" + cameraModelNote + ")");
             movedFiles.Add(file);
             CopyCompanionJsonFile(movedFiles, file, newDesitnationFolder, disambiguatedFileName, whatIf: false);
+            WriteHeicJpegSibling(disambiguatedFullPath, heicJpegBytes);
+        }
+
+        // Writes a JPEG copy alongside the HEIC's own resolved destination path (whatever it ended
+        // up as - possibly already disambiguated). heicJpegBytes is only non-null on a real (non
+        // -whatif) run where the caller already decoded the HEIC, so this never runs under -whatif
+        // and never touches movedFiles - the generated JPEG has no source-side counterpart, so it
+        // must stay invisible to the -d/DeleteSource cleanup that walks movedFiles.
+        private static void WriteHeicJpegSibling(string heicDestinationPath, byte[]? heicJpegBytes)
+        {
+            if (heicJpegBytes == null)
+                return;
+
+            var jpegPath = Path.ChangeExtension(heicDestinationPath, ".jpg");
+
+            if (!File.Exists(jpegPath))
+            {
+                File.WriteAllBytes(jpegPath, heicJpegBytes);
+                Print("Created JPEG copy " + jpegPath);
+                return;
+            }
+
+            var jpegHash = Convert.ToHexString(SHA256.HashData(heicJpegBytes)).ToLowerInvariant();
+            if (string.Equals(jpegHash, ComputeFileHash(jpegPath), StringComparison.Ordinal))
+            {
+                Print("Skipped JPEG copy - identical file already exists at " + jpegPath);
+                return;
+            }
+
+            var disambiguatedJpegPath = Path.Combine(
+                Path.GetDirectoryName(jpegPath)!,
+                BuildDisambiguatedFileName(Path.GetFileName(jpegPath), jpegHash[..8]));
+
+            if (File.Exists(disambiguatedJpegPath))
+            {
+                Print("JPEG copy not created, a different file already exists at " + disambiguatedJpegPath);
+                return;
+            }
+
+            File.WriteAllBytes(disambiguatedJpegPath, heicJpegBytes);
+            Print("Created JPEG copy " + disambiguatedJpegPath + " (different file already existed at " + jpegPath + ")");
         }
 
         private static string BuildDisambiguatedFileName(string fileName, string disambiguationSuffix)

@@ -9,7 +9,7 @@ namespace ImageSorter.Domain
 {
     internal class Input
     {
-        public Input(string sourceDir, string destinationDir, bool delete, bool whatIf)
+        public Input(string sourceDir, string destinationDir, bool delete, bool whatIf, bool convertHeicToJpeg)
         {
             if (string.IsNullOrWhiteSpace(sourceDir))
                 throw new ArgumentNullException(nameof(sourceDir));
@@ -26,6 +26,7 @@ namespace ImageSorter.Domain
             DestinationDir = destinationDir.TrimEnd('\\', '/');
             DeleteSource = delete;
             WhatIf = whatIf;
+            ConvertHeicToJpeg = convertHeicToJpeg;
         }
 
         private static bool IsValidAbsolutePath(string path)
@@ -42,5 +43,6 @@ namespace ImageSorter.Domain
         public string DestinationDir { get; }
         public bool DeleteSource { get; }
         public bool WhatIf { get; }
+        public bool ConvertHeicToJpeg { get; }
     }
 }

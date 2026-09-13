@@ -45,7 +45,7 @@ namespace ImageSorterTests
                     }
                 }
 
-                var inputArgs = new Input(tempSourceDir, destinationDir, delete: false, whatIf: false);
+                var inputArgs = new Input(tempSourceDir, destinationDir, delete: false, whatIf: false, convertHeicToJpeg: false);
                 var files = Util.GetAllFiles(inputArgs.SourceDir);
                 var movedFiles = new List<string>();
                 var exceptions = new ConcurrentBag<Exception>();
